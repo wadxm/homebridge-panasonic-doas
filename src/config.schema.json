@@ -1,0 +1,29 @@
+{
+  "pluginAlias": "Panasonic-DOAS",
+  "pluginType": "accessory",
+  "singular": false,
+  "headerDisplay": "Optional content to display above the plugin config. Supports markdown.",
+  "footerDisplay": "Optional content to display below the plugin config. Supports markdown.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "host": {
+        "title": "RS485 connetor host",
+        "type": "string",
+        "required": true
+      },
+      "port": {
+        "title": "RS485 TCP sock port",
+        "type": "number",
+        "required": true
+      },
+      "machine_id": {
+        "title": "Machine ID",
+        "type": "number",
+        "required": true
+      }
+    }
+  },
+  "form": null,
+  "display": null
+}
