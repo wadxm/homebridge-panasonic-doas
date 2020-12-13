@@ -11,7 +11,11 @@ export class Rs485Connnector {
     private readonly log: Logging;
     private client: Socket | undefined;
 
-    private readonly callbacks: {[key: string]: ((res: Buffer) => void)} = {};
+    private readonly callbacks: {[key: string]: {
+        command: number,
+        callback: (res: Buffer) => void,
+        createTime: number
+    }} = {};
 
     constructor(host: string, port: number, machine: number, log: Logging) {
         this.host = host;
@@ -44,14 +48,29 @@ export class Rs485Connnector {
     }
 
     onSockData(buffer: Buffer) {
-        this.log(`RS485 sock received: ${buffer}`);
+        this.log('RS485 sock received: ', buffer);
+        // remove dirty bytes
+        let i = 0;
+        while (i < buffer.length && buffer[i] > 0x0F) {
+            i++;
+        }
+        buffer = buffer.slice(i);
+
+        if (i > 0) {
+            this.log('Message corrected: ', buffer);
+        }
+
         if (buffer.length < 2) {
             return;
         }
-        const key = `${this.numToHex(buffer[0])}${this.numToHex(buffer[1])}`;
+        const key = this.numToHex(buffer[0]);
         if (this.callbacks[key]) {
-            this.callbacks[key](buffer);
-            delete this.callbacks[key];
+            if (this.callbacks[key].command === buffer[1]) {
+                this.callbacks[key].callback(buffer);
+                setTimeout(() => {
+                    delete this.callbacks[key];
+                }, 200);
+            }
         }
     }
 
@@ -68,13 +87,28 @@ export class Rs485Connnector {
     }
 
     sendRaw(machine: number, command: number, data: number[], callback: (data: Buffer) => void) {
-        this.callbacks[`${this.numToHex(machine)}${this.numToHex(command)}`] = callback;
+        if (this.callbacks[this.numToHex(machine)]) {
+            if (new Date().getTime() - this.callbacks[this.numToHex(machine)].createTime > 3000) {
+                // 3 seconds not responding
+                delete this.callbacks[this.numToHex(machine)];
+            } else {
+                // last command still waiting for response, retry some time later
+                setTimeout(() => this.sendRaw(machine, command, data, callback), 500);
+                return;
+            }
+        }
+
+        this.callbacks[this.numToHex(machine)] = {
+            command,
+            callback,
+            createTime: new Date().getTime()
+        };
 
         const content = [machine, command, ...data];
         const checkCode = crc16_modbus(content);
         content.push(checkCode >> 8, checkCode & 0xFF);
         const buffer = Buffer.from(content);
-        this.log(`RS485 sock sent: ${buffer}`);
+        this.log('RS485 sock sent: ', buffer);
         this.client!.write(buffer);
     }
 

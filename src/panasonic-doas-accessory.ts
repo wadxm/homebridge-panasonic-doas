@@ -88,47 +88,43 @@ class PanasonicDoas implements AccessoryPlugin {
 
     this.connector = new Rs485Connnector(host, port, machine_id, log);
 
-    this.airPurifierService = new hap.Service.AirPurifier(this.name);
-    this.airPurifierService.getCharacteristic(hap.Characteristic.Active)
+    this.airPurifierService = new hap.Service.Fan(this.name);
+    this.airPurifierService.getCharacteristic(hap.Characteristic.On)
         .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
+          log.info("Requesting get On of the air purifier...");
           this.connector.readPos(0x01, data => {
-            log.info("Current active state of the air purifier was returned: " + data);
-            callback(undefined, data);
+            log.info("Current On of the air purifier was returned: " + !!data);
+            callback(undefined, !!data);
           });
         })
         .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
+          log.info("Requesting set On of the air purifier...");
           this.connector.writePos(0x01, value ? 0x01 : 0x00, () => {
-            log.info("Current active state of the air purifier was set: " + value);
+            log.info("Current On of the air purifier was set: " + value);
             callback();
           });
         });
 
-    this.airPurifierService.getCharacteristic(hap.Characteristic.CurrentAirPurifierState)
+    this.airPurifierService.getCharacteristic(hap.Characteristic.RotationDirection)
         .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
+          log.info("Requesting get direction of the air purifier...");
           this.connector.readPos(0x02, data => {
             const mode = this.panasonicStateToHomeKitState(data);
-            log.info("Current mode of the air purifier was returned: " + mode);
-            callback(undefined, mode);
-          });
-        })
-
-    this.airPurifierService.getCharacteristic(hap.Characteristic.TargetAirPurifierState)
-        .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
-          this.connector.readPos(0x02, data => {
-            const mode = this.panasonicStateToHomeKitState(data);
-            log.info("Current mode of the air purifier was returned: " + mode);
+            log.info("Current direction of the air purifier was returned: " + mode);
             callback(undefined, mode);
           });
         })
         .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
+          log.info("Requesting set direction of the air purifier...");
           this.connector.writePos(0x02, this.homeKitStateToPanasonicState(value as number), () => {
-            log.info("Current mode of the air purifier was set: " + value);
+            log.info("Current direction of the air purifier was set: " + value);
             callback();
           });
         });
 
     this.airPurifierService.getCharacteristic(hap.Characteristic.RotationSpeed)
         .on(CharacteristicEventTypes.GET, (callback: CharacteristicGetCallback) => {
+          log.info("Requesting get speed of the air purifier...");
           this.connector.readPos(0x03, data => {
             const mode = this.panasonicSpeedToHomeKitSpeed(data);
             log.info("Current speed of the air purifier was returned: " + mode);
@@ -136,6 +132,7 @@ class PanasonicDoas implements AccessoryPlugin {
           });
         })
         .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
+          log.info("Requesting set speed of the air purifier...");
           this.connector.writePos(0x03, this.homeKitSpeedToPanasonicSpeed(value as number), () => {
             log.info("Current speed of the air purifier was set: " + value);
             callback();
@@ -152,22 +149,20 @@ class PanasonicDoas implements AccessoryPlugin {
   homeKitStateToPanasonicState = (d: number) => {
     switch (d) {
       case 0:
-        return 2;
-      case 2:
-        return 1;
-      case 5:
+        return 0;
+      case 1:
         return 2;
     }
-    return 1;
+    return 0;
   };
 
   panasonicStateToHomeKitState = (d: number) => {
     switch (d) {
       case 0:
         return 0;
-      case 1:
-        return 2;
       case 2:
+        return 1;
+      case 5:
         return 0;
     }
     return 0;
@@ -175,21 +170,21 @@ class PanasonicDoas implements AccessoryPlugin {
 
   homeKitSpeedToPanasonicSpeed = (d: number) => {
     if (d <= 30) {
-      return 0;
-    } else if (d < 70) {
       return 1;
-    } else {
+    } else if (d < 70) {
       return 2;
+    } else {
+      return 3;
     }
   };
 
   panasonicSpeedToHomeKitSpeed = (d: number) => {
     switch (d) {
-      case 0:
-        return 5;
       case 1:
-        return 50;
+        return 5;
       case 2:
+        return 50;
+      case 3:
         return 100;
     }
     return 0;

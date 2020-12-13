@@ -1,6 +1,6 @@
 {
   "name": "homebridge-panasonic-doas",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "A homebridge plugin for Panasonic DOAS",
   "main": "dist/panasonic-doas-accessory.js",
   "scripts": {
