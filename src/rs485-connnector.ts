@@ -1,6 +1,7 @@
 import {Logging} from 'homebridge';
 import {Socket} from "net";
 import {crc16_modbus} from "./crc16";
+import Timeout = NodeJS.Timeout;
 
 export class Rs485Connnector {
 
@@ -17,6 +18,8 @@ export class Rs485Connnector {
         createTime: number
     }} = {};
 
+    private heartbeatTimer: Timeout | undefined;
+
     constructor(host: string, port: number, machine: number, log: Logging) {
         this.host = host;
         this.port = port;
@@ -29,6 +32,10 @@ export class Rs485Connnector {
     init = async () => {
         this.log('RS485 sock initializing');
 
+        if (this.heartbeatTimer) {
+            clearInterval(this.heartbeatTimer);
+        }
+
         const net = require('net');
         this.client = new net.Socket();
 
@@ -37,6 +44,10 @@ export class Rs485Connnector {
         this.client!.setEncoding('utf8');
         this.client!.on('connect', () => {
             this.log('RS485 sock connected');
+
+            this.heartbeatTimer = setInterval(() => {
+                this.heartbeat();
+            }, 60000);
         });
         this.client!.on('data',(chunk)=>{
             const buffer = Buffer.from(chunk);
@@ -118,6 +129,11 @@ export class Rs485Connnector {
     }
 
     sendRaw(machine: number, command: number, data: number[], callback: (data: Buffer) => void) {
+        if (!this.client || this.client.destroyed || this.client.connecting) {
+            // socket not ready
+            this.log('ignore request because socket is not ready')
+            return;
+        }
         if (this.callbacks[this.numToHex(machine)]) {
             if (new Date().getTime() - this.callbacks[this.numToHex(machine)].createTime > 3000) {
                 // 3 seconds not responding
@@ -153,5 +169,9 @@ export class Rs485Connnector {
         this.sendRaw(this.machine, 0x10, [0x00, position, 0x00, 0x01, 0x02, 0x00, value], data => {
             callback();
         });
+    }
+
+    heartbeat() {
+        this.readPos(0x01, data => {});
     }
 }
