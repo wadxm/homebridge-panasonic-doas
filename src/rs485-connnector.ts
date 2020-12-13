@@ -11,7 +11,7 @@ export class Rs485Connnector {
     private readonly log: Logging;
     private client: Socket | undefined;
 
-    private readonly callbacks: {[key: string]: {
+    private callbacks: {[key: string]: {
         command: number,
         callback: (res: Buffer) => void,
         createTime: number
@@ -45,6 +45,9 @@ export class Rs485Connnector {
         this.client!.on('error',(e)=>{
             this.onSockError(e);
         })
+        this.client!.on('close',(closedForError: boolean)=>{
+            this.onSockClosed(closedForError);
+        })
     }
 
     onSockData(buffer: Buffer) {
@@ -76,6 +79,34 @@ export class Rs485Connnector {
 
     onSockError(e: Error) {
         this.log('error: ' + e.message);
+        this.retrySocketConnection();
+    }
+
+    onSockClosed(closedForError: boolean) {
+        this.log('closed: ' + closedForError);
+        if (!closedForError) {
+            this.retrySocketConnection();
+        }
+    }
+
+    retrySocketConnection() {
+        if (!this.client) {
+            // already pending reconnect
+            return;
+        }
+        if (this.client && !this.client.destroyed) {
+            try {
+                this.client.destroy();
+            } catch (e) {
+
+            }
+        }
+        this.client = undefined;
+        this.callbacks = {};
+        this.log('retry connect after 3 seconds...');
+        setTimeout(() => {
+            this.init();
+        }, 3000);
     }
 
     private numToHex(number: number) {
